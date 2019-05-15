@@ -22,7 +22,7 @@ def load_KerasGraph(path):
 def classify(model, graph, sess, im):
     im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
 
-    # im = cv2.flip(im, 1)
+    im = cv2.flip(im, 1)
 
     # Reshape
     res = cv2.resize(im, (28,28), interpolation=cv2.INTER_AREA)

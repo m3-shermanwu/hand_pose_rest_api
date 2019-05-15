@@ -22,8 +22,12 @@ CORS(app, support_credentials=True)
 pose_model = None
 pose_classification_graph = None
 pose_session = None
-score_thresh = 0.6
+score_thresh = 0.7
 pose_confidence_level = 0.6
+# hand_model = None
+# hand_classification_graph = None
+# hand_session = None
+detection_graph, hand_session = detector_utils.load_inference_graph()
 
 
 def load_pose_model():
@@ -33,9 +37,9 @@ def load_pose_model():
 
 
 def load_hand_model():
-    print(">> loading frozen model for worker")
-    detection_graph, sess = detector_utils.load_inference_graph()
-    sess = tf.Session(graph=detection_graph)
+    global hand_session, detection_graph
+    detection_graph, hand_session = detector_utils.load_inference_graph()
+    hand_session = tf.Session(graph=detection_graph)
 
 
 def prepare_image(image, target):
@@ -68,16 +72,35 @@ def predict():
             # read the image in PIL format
             # image = flask.request.files["image"].read()
             # image = Image.open(io.BytesIO(image))
-            json_data = json.loads(flask.request.data.decode('ascii'))
-            image_data = re.sub('^data:image/.+;base64,', '', json_data['image'])
-            image = Image.open(BytesIO(base64.b64decode(image_data)))
-            image = img_to_array(image)
-            # classify the input image
-            data["result"] = classifier.classify(pose_model, pose_classification_graph, pose_session, image)
-            if float(data["result"][max(data["result"], key = data["result"].get)]) > pose_confidence_level:
-                data["highest"] = max(data["result"], key = data["result"].get)
-            else:
-                data["highest"] = None
+            #json_data = json.loads(flask.request.data.decode('ascii'))
+            # image_data = re.sub('^data:image/.+;base64,', '', json_data['image'])
+            image = Image.open(BytesIO(base64.b64decode(flask.request.data)))
+            width, height = image.size
+            image_np = img_to_array(image)
+            image_np = cv2.flip(image_np, 1)
+            boxes, scores = detector_utils.detect_objects(
+                image_np, detection_graph, hand_session)
+            print(scores)
+            print("Width: {}, Height: {}".format(width,height))
+            # get region of interest
+            res = detector_utils.get_box_image(1, score_thresh,
+                                               scores, boxes, width, height, image_np)
+            new_im = Image.fromarray(res.astype(np.uint8))
+            buffered = BytesIO()
+            new_im.save(buffered, format="JPEG")
+            img_str = base64.b64encode(buffered.getvalue())
+            print(img_str)
+            print(res.astype(np.uint8))
+            if res is not None:
+                class_res = classifier.classify(pose_model, pose_classification_graph, pose_session, res)
+
+            print(class_res)
+            # # classify the input image
+            # data["result"] = classifier.classify(pose_model, pose_classification_graph, pose_session, image)
+            # if float(data["result"][max(data["result"], key = data["result"].get)]) > pose_confidence_level:
+            #     data["highest"] = max(data["result"], key = data["result"].get)
+            # else:
+            #     data["highest"] = None
             # indicate that the request was a success
             data["success"] = True
     endtime = time.time()

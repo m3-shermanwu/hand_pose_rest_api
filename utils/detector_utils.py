@@ -57,6 +57,13 @@ def draw_box_on_image(num_hands_detect, score_thresh, scores, boxes, im_width, i
             p2 = (int(right), int(bottom))
             cv2.rectangle(image_np, p1, p2, (77, 255, 9), 3, 1)
 
+
+# Show fps value on image.
+def draw_fps_on_image(fps, image_np):
+    cv2.putText(image_np, fps, (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (77, 255, 9), 2)
+
+
 def get_box_image(num_hands_detect, score_thresh, scores, boxes, im_width, im_height, image_np):
     for i in range(num_hands_detect):
         if (scores[i] > score_thresh):
@@ -65,12 +72,6 @@ def get_box_image(num_hands_detect, score_thresh, scores, boxes, im_width, im_he
             p1 = (int(left), int(top))
             p2 = (int(right), int(bottom))
             return image_np[int(top):int(bottom), int(left):int(right)].copy()
-
-
-# Show fps value on image.
-def draw_fps_on_image(fps, image_np):
-    cv2.putText(image_np, fps, (20, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (77, 255, 9), 2)
 
 
 # Actual detection .. generate scores and bounding boxes given an image
@@ -98,45 +99,3 @@ def detect_objects(image_np, detection_graph, sess):
     return np.squeeze(boxes), np.squeeze(scores)
 
 
-# Code to thread reading camera input.
-# Source : Adrian Rosebrock
-# https://www.pyimagesearch.com/2017/02/06/faster-video-file-fps-with-cv2-videocapture-and-opencv/
-class WebcamVideoStream:
-    def __init__(self, src, width, height):
-        # initialize the video camera stream and read the first frame
-        # from the stream
-        self.stream = cv2.VideoCapture(src)
-        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        (self.grabbed, self.frame) = self.stream.read()
-
-        # initialize the variable used to indicate if the thread should
-        # be stopped
-        self.stopped = False
-
-    def start(self):
-        # start the thread to read frames from the video stream
-        Thread(target=self.update, args=()).start()
-        return self
-
-    def update(self):
-        # keep looping infinitely until the thread is stopped
-        while True:
-            # if the thread indicator variable is set, stop the thread
-            if self.stopped:
-                return
-
-            # otherwise, read the next frame from the stream
-            (self.grabbed, self.frame) = self.stream.read()
-
-    def read(self):
-        # return the frame most recently read
-        return self.frame
-
-    def size(self):
-        # return size of the capture device
-        return self.stream.get(3), self.stream.get(4)
-
-    def stop(self):
-        # indicate that the thread should be stopped
-        self.stopped = True
