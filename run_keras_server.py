@@ -22,12 +22,13 @@ CORS(app, support_credentials=True)
 pose_model = None
 pose_classification_graph = None
 pose_session = None
-score_thresh = 0.7
+score_thresh = 0.6
 pose_confidence_level = 0.6
 # hand_model = None
 # hand_classification_graph = None
 # hand_session = None
-detection_graph, hand_session = detector_utils.load_inference_graph()
+detection_graph = None
+hand_session = None
 
 
 def load_pose_model():
@@ -60,51 +61,53 @@ def prepare_image(image, target):
 @app.route("/predict", methods=["POST"])
 @cross_origin(supports_credentials=True)
 def predict():
-    # initialize the data dictionary that will be returned from the
-    # view
-    starttime = time.time()
+    # initialize the data dictionary that will be returned from the view
     data = {"success": False}
     global pose_model, pose_classification_graph, pose_session
     # ensure an image was properly uploaded to our endpoint
     if flask.request.method == "POST":
         if flask.request.data:
-            print(flask.request.data)
+
             # read the image in PIL format
             # image = flask.request.files["image"].read()
             # image = Image.open(io.BytesIO(image))
-            #json_data = json.loads(flask.request.data.decode('ascii'))
-            # image_data = re.sub('^data:image/.+;base64,', '', json_data['image'])
-            image = Image.open(BytesIO(base64.b64decode(flask.request.data)))
+            json_data = json.loads(flask.request.data.decode('ascii'))
+            # print(json_data["image"])
+            image_data = re.sub('^data:image/.+;base64,', '', json_data['image'])
+            image = Image.open(BytesIO(base64.b64decode(image_data)))
+
             width, height = image.size
             image_np = img_to_array(image)
             image_np = cv2.flip(image_np, 1)
+            image_np_without_alpha = image_np[:, :, :3].astype(np.uint8)
+            # print(image_np_without_alpha)
             boxes, scores = detector_utils.detect_objects(
-                image_np, detection_graph, hand_session)
-            print(scores)
-            print("Width: {}, Height: {}".format(width,height))
+                image_np_without_alpha, detection_graph, hand_session)
+
             # get region of interest
             res = detector_utils.get_box_image(1, score_thresh,
-                                               scores, boxes, width, height, image_np)
-            new_im = Image.fromarray(res.astype(np.uint8))
-            buffered = BytesIO()
-            new_im.save(buffered, format="JPEG")
-            img_str = base64.b64encode(buffered.getvalue())
-            print(img_str)
-            print(res.astype(np.uint8))
-            if res is not None:
-                class_res = classifier.classify(pose_model, pose_classification_graph, pose_session, res)
+                                               scores, boxes, width, height, image_np_without_alpha)
 
-            print(class_res)
-            # # classify the input image
-            # data["result"] = classifier.classify(pose_model, pose_classification_graph, pose_session, image)
-            # if float(data["result"][max(data["result"], key = data["result"].get)]) > pose_confidence_level:
-            #     data["highest"] = max(data["result"], key = data["result"].get)
-            # else:
-            #     data["highest"] = None
-            # indicate that the request was a success
-            data["success"] = True
-    endtime = time.time()
-    print("Time Elapsed: " + str(endtime - starttime))
+            # print(res.astype(np.uint8))
+            if res is not None:
+                # new_im = Image.fromarray(res.astype(np.uint8))
+                # buffered = BytesIO()
+                # new_im.save(buffered, format="JPEG")
+                # img_str = base64.b64encode(buffered.getvalue())
+                # print(img_str)
+                # classify the input image
+                class_res = classifier.classify(pose_model, pose_classification_graph, pose_session,
+                                                res.astype(np.uint8))
+                # print(class_res)
+                data["result"] = class_res
+                data["bounding_box"] = detector_utils.get_bounding_box(1, score_thresh, scores, boxes, width, height)
+                if float(data["result"][max(data["result"], key=data["result"].get)]) > pose_confidence_level:
+                    data["highest"] = max(data["result"], key=data["result"].get)
+                else:
+                    data["highest"] = None
+                # indicate that the request was a success
+                data["success"] = True
+                print(data)
     # return the data dictionary as a JSON response
     return flask.jsonify(data)
 
@@ -114,5 +117,6 @@ def predict():
 if __name__ == "__main__":
     print(("* Loading Keras model and Flask starting server..."
            "please wait until server has fully started"))
+    load_hand_model()
     load_pose_model()
     app.run()
