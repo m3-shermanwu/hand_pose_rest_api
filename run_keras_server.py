@@ -76,7 +76,8 @@ def predict():
             image_data = re.sub('^data:image/.+;base64,', '', json_data['image'])
             image = Image.open(BytesIO(base64.b64decode(image_data)))
 
-            width, height = image.size
+            width = 640
+            height = 480
             image_np = img_to_array(image)
             image_np = cv2.flip(image_np, 1)
             image_np_without_alpha = image_np[:, :, :3].astype(np.uint8)
